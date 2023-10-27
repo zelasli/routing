@@ -81,6 +81,54 @@ class Router
     ];
 
     /**
+     * Check if value matches the given placeholder type
+     * 
+     * @param string $value
+     * @param string $type
+     * 
+     * @return bool
+     */
+    protected function checkValueMatch($value, $type): bool
+    {
+        foreach (self::$placeholders as $name => $placeholder) {
+            if ($name == $type) {
+                $pattern = '#^(' . $placeholder[0];
+                $pattern .= ($placeholder[1]) ? 
+                '*' : '';
+                $pattern .= ')$#';
+
+                return preg_match($pattern, $value, $m) !== 0 | false;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Check whether value matches quantifier pattern
+     * 
+     * @param string $value
+     * @param array $quantifier
+     * 
+     * @return bool
+     */
+    protected function checkValueQuantifier($value, array $quantifier): bool
+    {
+        $valen = strlen((string) $value);
+
+        if (
+        (
+            (count($quantifier) > 1) && 
+            ($valen >= $quantifier[0] && (empty($quantifier[1]) || $valen <= $quantifier[1]))
+        ) || 
+        (count($quantifier) == 1 && $quantifier[0] == $valen)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Find the Route object in the collection that matches the given name.
      * 
      * @param string $url
@@ -89,6 +137,12 @@ class Router
      */
     public function findRouteByName(string $name): null|Route
     {
+        foreach ($this->collection as $RName => $RObject) {
+            if ($RName === $name) {
+                return clone $RObject;
+            }
+        }
+
         return null;
     }
 
@@ -101,6 +155,14 @@ class Router
      */
     public function findRouteByUrl(string $url): null|Route
     {
+        foreach ($this->collection as $RObject) {
+            $RObject = clone $RObject;
+
+            if ($this->isUrlForRoute($url, $RObject)) {
+                return $RObject;
+            }
+        }
+
         return null;
     }
 
@@ -114,6 +176,22 @@ class Router
      */
     protected function isUrlForRoute(string $url, Route $route): bool
     {
+        $routeUrl = $route->getUrl();
+
+        // Simple match. Is url string same as route url?
+        if ($routeUrl == $url) {
+            return true;
+        }
+
+        // Are we Here? Make preg_match_all
+        if (preg_match_all("#^" . $routeUrl . "$#", $url, $matches, PREG_SET_ORDER)) {
+            if ($route->hasParams()) {
+                $route->setParamsValue($matches);
+            }
+
+            return true;
+        }
+
         return false;
     }
     
@@ -186,10 +264,11 @@ class Router
         preg_match_all($pattern, $url, $matches, PREG_SET_ORDER);
         $placeholders = [];
         
+        $i = 1; // For positional placeholders, as indexed like indexed array
         foreach ($matches as $match) {
             $placeholders[] = [
                 'placeholder' => $match['placeholder'],
-                'name' => $match['name'],
+                'name' => !empty($match['name']) ? $match['name'] : $i++,
                 'type' => $match['type'],
                 'quantifier' => $match['quantifier'],
             ];
@@ -255,6 +334,90 @@ class Router
         if (!in_array($name, array_keys(self::$placeholders))) {
             self::$placeholders[$name] = [$pattern, $hasQuantifier];
         }
+    }
+
+    /**
+     * Reverse route url
+     * 
+     * @param string $name
+     * @param array|null $params
+     * 
+     * @return null|string
+     */
+    public function reverseUrl($name, array|null $params = null): null|string
+    {
+        $route = $this->findRouteByName($name);
+        $replaced = 0;
+        
+        if (!is_null($route)) {
+            $routeUrlWithPlaceholder = $url = $route->getAttrUrl();
+            $routeParams = $route->getAttrParams();
+            $urlParams = $this->processRouteParams($routeUrlWithPlaceholder);
+            
+            if (count($routeParams) == 0) {
+                $url = $route->getUrl();
+            } elseif (
+            (is_array($params) && count($params) != count($routeParams)) || 
+            !is_array($params)) {
+                return null;
+            }
+            
+            $has_quantifier = self::$placeholders;
+            $has_quantifier = array_keys(array_filter(
+                $has_quantifier, 
+                fn ($v) => $v[1] == true
+            ));
+            
+            foreach ($urlParams['placeholders'] as $pl) {
+                $name = $pl['name'];
+                $type = $pl['type'];
+                $quantifier = $pl['quantifier'];
+                
+                foreach ($params as $paramK => $paramV) {
+                    if ($paramK == $name && $this->checkValueMatch($paramV, $type)) {
+                        if (
+                            !in_array($type, $has_quantifier) && 
+                            strpos($url, $pl['placeholder']) !== false
+                        ) {
+                            $url = str_ireplace($pl['placeholder'], $paramV, $url);
+                            $replaced++;
+
+                            continue;
+                        } elseif (empty($quantifier) || substr($quantifier, 1) == '+') {
+                            $quantifier = [1, ''];
+                        } elseif (substr($quantifier, 1) == '?') {
+                            $quantifier = [0, 1];
+                        } elseif (substr($quantifier, 1) == '*') {
+                            $quantifier = [0, ''];
+                        } elseif (strpos($quantifier, ':') === 0) {
+                            $quantifier = substr($quantifier, 1);
+                            
+                            if (is_numeric($quantifier)) {
+                                $quantifier = [$quantifier];
+                            } else {
+                                $quantifier = explode(',', $quantifier);
+                                $quantifier[0] = empty($quantifier[0]) ?
+                                1 : $quantifier[0];
+                            }
+                        }
+
+                        if ($this->checkValueQuantifier($paramV, $quantifier) && 
+                        strpos($url, $pl['placeholder']) !== false) {
+                            $url = str_ireplace($pl['placeholder'], $paramV, $url);
+
+                            $replaced++;
+                        }
+                    }
+                }
+            }
+
+            if ($replaced == count($routeParams)) {
+                return $url;
+            }
+        }
+
+
+        return null;
     }
     
     /**

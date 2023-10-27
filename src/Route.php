@@ -78,6 +78,16 @@ class Route
     }
 
     /**
+     * Get unformatted url.
+     * 
+     * @return string
+     */
+    public function getAttrUrl(): string
+    {
+        return $this->attributes['url'] ?? '';
+    }
+
+    /**
      * Get the controller class namespace.
      * 
      * The class name as it was declared including namespace.
