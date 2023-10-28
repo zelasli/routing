@@ -2,6 +2,20 @@
 
 Zelasli Routing module that link single HTTP request to a controller actions.
 
+## **Installation**
+
+To install using composer in your project (**`recommended`**):
+
+```bash
+composer require zelasli/routing
+```
+
+You can also clone the repository and include all the files resides inside `src/` to the entry point of your project.
+
+```bash
+git clone https://github.com/zelasli/routing.git
+```
+
 ## Getting started
 
 Firstly, create the `RouteBuilder` which will build the linking of the `URL` to a given namespace destination.
