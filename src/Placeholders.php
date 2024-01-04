@@ -4,7 +4,7 @@
  *
  * @package Zelasli\Routing
  * @author Rufai Limantawa <rufailimantawa@gmail.com>
- * @version 0.1.0
+ * @version 0.2.8
  */
 
 namespace Zelasli\Routing;
@@ -134,21 +134,4 @@ class Placeholders
      * @var string
      */
     const DAY = '0[1-9]|[12][0-9]|3[01]';
-
-    /**
-     * Placeholders that only support quantifier.
-     * 
-     * @var array
-     */
-    const LENGTHY = [
-        'any',
-        'alnum',
-        'alpha',
-        'bit',
-        'digit',
-        'lower',
-        'odigit',
-        'upper',
-        'xdigit',
-    ];
 }

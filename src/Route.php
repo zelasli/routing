@@ -4,7 +4,7 @@
  *
  * @package Zelasli\Routing
  * @author Rufai Limantawa <rufailimantawa@gmail.com>
- * @version 0.1.0
+ * @version 0.2.8
  */
 
 namespace Zelasli\Routing;
@@ -60,7 +60,7 @@ class Route
      * 
      * @return string
      */
-    public function getAction()
+    public function getAction(): string
     {
         return $this->action;
     }
@@ -132,12 +132,42 @@ class Route
     }
 
     /**
+     * Get value set with the route
+     * 
+     * @param string $name
+     * 
+     * @return mixed|null
+     */
+    public function getOption($name): array|bool|float|int|string|null
+    {
+        return isset($this->attributes['options'][$name])
+            ? $this->attributes['options'][$name]
+            : null;
+    }
+
+    /**
+     * Get multiple options value at a time
+     * 
+     * @param array $names
+     */
+    public function getOptions(array $names): array
+    {
+        $list = [];
+
+        foreach ($names as $name) {
+            $list[$name] = $this->getOption($name);
+        }
+
+        return $list;
+    }
+
+    /**
      * Get parsed parameters from request url that matched the route to be 
      * passed to the controller's method as it's parameters.
      * 
      * @return array
      */
-    public function getParams()
+    public function getParams(): string
     {
         return $this->attributes['paramsValue'] ?? [];
     }
@@ -164,6 +194,16 @@ class Route
     public function getUrl(): mixed
     {
         return $this->url;
+    }
+
+    /**
+     * Check whether this route has non null value of an option.
+     * 
+     * @param string $name
+     */
+    public function has($name): bool
+    {
+        return $this->getOption($name) != null;
     }
 
     /**

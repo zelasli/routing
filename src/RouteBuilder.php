@@ -4,7 +4,7 @@
  *
  * @package Zelasli\Routing
  * @author Rufai Limantawa <rufailimantawa@gmail.com>
- * @version 0.1.0
+ * @version 0.2.8
  */
 
 namespace Zelasli\Routing;
@@ -50,11 +50,11 @@ class RouteBuilder
     /**
      * Create a new route object.
      * 
-     * Convert parameters<$url, $callback, $options> given to the actual 
+     * Convert parameters<$url, $destination, $options> given to the actual 
      * routing route.
      * 
      * @param string $url - The request URL that match to this route.
-     * @param string $callback - The destination to invoke for the url. This 
+     * @param string $destination - The destination to invoke for the url. This 
      * is the  controller namespace, controller action to invoke as method, 
      * and the parameters to pass when calling the method. 
      * @param array $options - The options on how to handle the route when the
@@ -62,28 +62,21 @@ class RouteBuilder
      * 
      * @return Route
      */
-    protected function createRoute($url, $callback, $options): Route
+    protected function createRoute($url, $destination, $options): Route
     {
         // Replace backward slash to forward slash, since parser uses forward 
         // slash
-        $callback = str_replace('\\', '/', $callback);
-        $closure = Router::parseClosureInfo($callback);
+        $destination = str_replace('\\', '/', $destination);
+        $closure = Router::parseClosureInfo($destination);
         $parsed = Router::processRouteParams($url);
         $closure['url'] = $parsed['url'];
         $attributes = [
             'url' => $url
         ];
-        
+
         if (!empty($options['name']) && count($placeholders = $parsed['placeholders']) > 0) {
-            $i = 1;
-            $newPlaceholders = [];
-            
             foreach ($placeholders as $k => $placeholder) {
-                if (empty($placeholder)) {
-                    $placeholders[$k]['name'] = $i++;
-                }
-                
-                $newPlaceholders[] = $placeholder;
+                $attributes['params'][] = $placeholder['pattern'];
             }
         }
 
@@ -111,9 +104,20 @@ class RouteBuilder
         // Add $attributes[] to $closure[]
         $attributes['options'] = array_filter(
             $options, 
-            fn ($k, $v) => !in_array($k, ['name']), 
+            fn ($v, $k) => str_starts_with($k, '_'), 
             ARRAY_FILTER_USE_BOTH
         );
+
+        // Strip (_) in each option key!
+        foreach ($attributes['options'] as $optionK => $optionV) {
+            unset($attributes['options'][$optionK]);
+            $attributes['options'][substr($optionK, 1)] = $optionV;
+        }
+
+        // Does $attributes['options'] has no elements? remove it!
+        if (empty($attributes['options'])) {
+            unset($attributes['options']);
+        }
         $closure['attributes'] = $attributes;
         
         return new Route(...$closure);
@@ -127,6 +131,17 @@ class RouteBuilder
     public function getCollection(): RouteCollection
     {
         return $this->collection;
+    }
+
+    /**
+     * Get Router instance ready to use with route builder by this route 
+     * builder
+     * 
+     * @return Router
+     */
+    public function getRouterInstance(): Router
+    {
+        return new Router($this->collection);
     }
 
     /**
@@ -158,9 +173,12 @@ class RouteBuilder
      * ```
      * 
      * @param string $url
-     * @param array|string $callback
+     * @param array|string $destination
+     * 
+     * @return Route
+     * @throws InvalidArgumentException
      */
-    public function link(string $url, $callback = [], array $options = []): Route
+    public function link(string $url, $destination, array $options = []): Route
     {
         $groupPrefix = $this->scopePrefix;
         $url = 
@@ -168,24 +186,24 @@ class RouteBuilder
             '/' . 
             ltrim($url, '/');
 
-        if (is_array($callback)) {
-            if (count($callback) > 1) {
-                $old_callback = array_values($callback);
+        if (is_array($destination)) {
+            if (count($destination) > 1) {
+                $old_destination = array_values($destination);
 
-                $callback = $old_callback[0];
-                $callback .= "::" . trim($old_callback[1], '/');
+                $destination = $old_destination[0];
+                $destination .= "::" . trim($old_destination[1], '/');
 
-                array_shift($old_callback);
-                array_shift($old_callback);
+                array_shift($old_destination);
+                array_shift($old_destination);
                 
-                if (!empty($old_callback)) {
-                    $callback .= "/" .
+                if (!empty($old_destination)) {
+                    $destination .= "/" .
                     ltrim(
                         implode(
                             '/', 
                             array_map(
                                 fn ($param) => trim($param, '/'), 
-                                $old_callback
+                                $old_destination
                             )
                         ), 
                         '/'
@@ -193,12 +211,12 @@ class RouteBuilder
                 }
             } else {
                 throw new InvalidArgumentException(
-                    "Route with array callback parameter must have controller and action passed."
+                    "Route with array destination parameter must have controller and action passed."
                 );
             }
         }
 
-        $route = $this->createRoute($url, $callback, $options);
+        $route = $this->createRoute($url, $destination, $options);
 
         $this->collection->add($route);
         
@@ -214,23 +232,27 @@ class RouteBuilder
      * 
      * ```
      * $builder->group('/admin', function ($builder) {
-     *  $builder->link('dashboard', "\Admin\Dashboard::index");
-     *  $builder->link('users', "\Admin\Users::index");
-     *  $builder->link('users/view/(id:digit)', "\Admin\Users::view/{id}");
+     *  $builder->link('/dashboard', "\Admin\Dashboard::index");
+     *  $builder->link('/users', "\Admin\Users::index");
+     *  $builder->link('/users/view/(id:digit)', "\Admin\Users::view/{id}");
      * });
      * ```
      * 
      * @param string $url
-     * @param Closure $callback
+     * @param Closure $anonymFunc
      * 
      * @return void
      */
-    public function group(string $url, Closure $callback): void
+    public function group(string $url, Closure $anonymFunc): void
     {
         $oldPrefix = $this->scopePrefix;
-        $this->scopePrefix .= ltrim($url, '/');
+        $prefix = ($oldPrefix == '/')
+            ? ""
+            : rtrim($this->scopePrefix, '/');
 
-        $callback($this);
+        $this->scopePrefix = $prefix . '/' . ltrim($url, '/');
+
+        $anonymFunc($this);
 
         $this->scopePrefix = $oldPrefix;
     }

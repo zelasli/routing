@@ -16,9 +16,19 @@ You can also clone the repository and include all the files resides inside `src/
 git clone https://github.com/zelasli/routing.git
 ```
 
+and includes the modules files
+
+```php
+require_once 'path/to/src/Placeholders.php';
+require_once 'path/to/src/Route.php';
+require_once 'path/to/src/RouteBuilder.php';
+require_once 'path/to/src/RouteCollection.php';
+require_once 'path/to/src/Router.php';
+```
+
 ## Getting started
 
-Firstly, create the `RouteBuilder` which will build the linking of the `URL` to a given namespace destination.
+Create the `RouteBuilder` which will build the linking of the `URL` to a given namespace destination.
 
 ```php
 $builder = new RouteBuilder(new RouteCollection);
@@ -26,7 +36,7 @@ $builder = new RouteBuilder(new RouteCollection);
 
 ### **Defining the linking**
 
-Next, define all your reuqest linking and grouped linking to a prefix initial. The link is a method in the `RouteBuilder` that create `Route` for the request url and link that request URL to destination of an action. This action comprises of class namespace and method to be invoked, with it's parameter(s) to pass.
+Define all your request linking and grouped linking to a prefix initial. The link is a method in the `RouteBuilder` that create `Route` for the request url and link that request URL to destination of an action. This action comprises of class namespace and method to be invoked, with it's parameter(s) to pass.
 
 The first parameter define the URL that will match the linking (`Route`), and the second parameter is the class namespace with action, and parameter to be extracted from the very first parameter.
 
@@ -91,13 +101,7 @@ $builder->group('/blog', function (RouteBuilder $builder) {
 The main use of `Router` is to find the `Route` that matches the current HTTP request url. Now, create your `Router` object.
 
 ```php
-$router = new Router;
-```
-
-After you have defined your linking (`Route`) then get the `RouteCollection` from the `RouteBuilder` and set the collection to the `Router`.
-
-```php
-$router->setCollection($builder->getCollection());
+$router = $builder->getRouterInstance();
 ```
 
 ### **Find the matched Route**

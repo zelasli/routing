@@ -4,7 +4,7 @@
  *
  * @package Zelasli\Routing
  * @author Rufai Limantawa <rufailimantawa@gmail.com>
- * @version 0.1.0
+ * @version 0.2.8
  */
 
 namespace Zelasli\Routing;
@@ -79,6 +79,13 @@ class Router
             false
         ],
     ];
+
+    public function __construct(RouteCollection $collection = null)
+    {
+        if ($collection != null) {
+            $this->collection = $collection;
+        }
+    }
 
     /**
      * Check if value matches the given placeholder type
@@ -199,12 +206,12 @@ class Router
      * Parse the controller, action and parameters from route 
      * destination string.
      * 
-     * @param string $callback
+     * @param string $destination
      * 
      * @return array
      * @throws InvalidArgumentException
      */
-    public static function parseClosureInfo(string $callback): array
+    public static function parseClosureInfo(string $destination): array
     {
         $pattern = '#^
         (?:(?<prefix>[a-z0-9]+(?:/[a-z0-9]+)*)/)?
@@ -219,9 +226,9 @@ class Router
         )+/?)?
         $#ix';
         
-        if (!preg_match($pattern, rtrim($callback, '/'), $matches)) {
+        if (!preg_match($pattern, rtrim($destination, '/'), $matches)) {
             throw new InvalidArgumentException(
-                sprintf("Could not parse route destination: %s", $callback)
+                sprintf("Could not parse route destination: %s", $destination)
             );
         }
         
@@ -264,10 +271,10 @@ class Router
         preg_match_all($pattern, $url, $matches, PREG_SET_ORDER);
         $placeholders = [];
         
-        $i = 1; // For positional placeholders, as indexed like indexed array
+        $i = 1; // For positional placeholders, indexed
         foreach ($matches as $match) {
             $placeholders[] = [
-                'placeholder' => $match['placeholder'],
+                'pattern' => $match['placeholder'],
                 'name' => !empty($match['name']) ? $match['name'] : $i++,
                 'type' => $match['type'],
                 'quantifier' => $match['quantifier'],
@@ -329,7 +336,7 @@ class Router
      * 
      * @return void
      */
-    public static function registerPlaceholder($name, $pattern, $hasQuantifier = true)
+    public static function registerPlaceholder($name, $pattern, $hasQuantifier = true): void
     {
         if (!in_array($name, array_keys(self::$placeholders))) {
             self::$placeholders[$name] = [$pattern, $hasQuantifier];
@@ -368,18 +375,18 @@ class Router
                 fn ($v) => $v[1] == true
             ));
             
-            foreach ($urlParams['placeholders'] as $pl) {
-                $name = $pl['name'];
-                $type = $pl['type'];
-                $quantifier = $pl['quantifier'];
+            foreach ($urlParams['placeholders'] as $placeholder) {
+                $name = $placeholder['name'];
+                $type = $placeholder['type'];
+                $quantifier = $placeholder['quantifier'];
                 
                 foreach ($params as $paramK => $paramV) {
                     if ($paramK == $name && $this->checkValueMatch($paramV, $type)) {
                         if (
                             !in_array($type, $has_quantifier) && 
-                            strpos($url, $pl['placeholder']) !== false
+                            strpos($url, $placeholder['pattern']) !== false
                         ) {
-                            $url = str_ireplace($pl['placeholder'], $paramV, $url);
+                            $url = str_ireplace($placeholder['pattern'], $paramV, $url);
                             $replaced++;
 
                             continue;
@@ -402,8 +409,8 @@ class Router
                         }
 
                         if ($this->checkValueQuantifier($paramV, $quantifier) && 
-                        strpos($url, $pl['placeholder']) !== false) {
-                            $url = str_ireplace($pl['placeholder'], $paramV, $url);
+                        strpos($url, $placeholder['pattern']) !== false) {
+                            $url = str_ireplace($placeholder['pattern'], $paramV, $url);
 
                             $replaced++;
                         }
