@@ -1,6 +1,6 @@
 # Zelasli Routing
 
-Zelasli Routing module that link single HTTP request to a controller actions.
+A routing module that link single HTTP request to a destination (controller's action)
 
 ## **Installation**
 
@@ -28,10 +28,10 @@ require_once 'path/to/src/Router.php';
 
 ## Getting started
 
-Create the `RouteBuilder` which will build the linking of the `URL` to a given namespace destination.
+Create the `RouteBuilder` which will build the linking of the `URL` to the given destination.
 
 ```php
-$builder = new RouteBuilder(new RouteCollection);
+$routeBuilder = new RouteBuilder(new RouteCollection);
 ```
 
 ### **Defining the linking**
@@ -44,8 +44,6 @@ The first parameter define the URL that will match the linking (`Route`), and th
 $builder->link('/home', 'HomeController::index')
 ```
 
-The above link will match request URLs of `http:://localhost:8000/home`, `http:://example.com/home`, and `http:://127.0.0.1:8000/home`
-
 The above linking can also be defined like this which the second parameter to be an array of the controller class and action (the class method to invoke).
 
 ```php
@@ -57,25 +55,23 @@ $builder->link('/home', ["HomeController", "index"]);
 The linking can also collect parameters to pass when invoking a controller's action.
 
 ```php
-$builder->link('/blog/(:digit)', "BlogController::view/{1}");
+$builder->link('/blogs/(:digit)', "App\\Controllers\\BlogController::view/{1}");
 ```
 
-This will match any one of `http:://localhost:8000/blog/123456789`, `http:://example.com/123456789`, and `http:://127.0.0.1:8000/123456789`.
+This means that the matching of `/blogs/123456789` will extract the value `123456789` as a number and it means that the method `view` in class `App\Controllers\BlogController` has a parameter that collect integer value.
 
-This means that the matching of `/blog/123456789` will extract the value `123456789` as a number and it means that the method `view` in class `BlogController` has a parameter that collect integer value.
-
-You can also give the parameter a name like this
+You can also use name of parameter like this
 
 ```php
-$builder->link('/blog/(blogId:digit)', "BlogController::view/{blogId}");
+$builder->link('/blogs/(blogId:digit)', "App\\Controllers\\BlogController::view/{blogId}");
 ```
 
 ### **Linking with name**
 
-A linking also can have a name used to reverse the route
+A linking can also have a name used to reverse the route
 
 ```php
-$builder->link('/blog/(blogId:digit)', "BlogController::view/{blogId}", [
+$builder->link('/blogs/(blogId:digit)', "App\\Controllers\\BlogController::view/{blogId}", [
     'name' => 'blogViewPage'
 ]);
 ```
@@ -85,23 +81,31 @@ $builder->link('/blog/(blogId:digit)', "BlogController::view/{blogId}", [
 You can also group related linking with the same initial.
 
 ```php
-$builder->group('/blog', function (RouteBuilder $builder) {
-    $builder->link('/', "BlogController::view_all");
-    $builder->link('/create', "BlogController::create");
-    $builder->link('/view/(blogId:digit)', "BlogController::view/{blogId}", [
-        'name' => 'blogView'
+$builder->group('/blogs', function (RouteBuilder $builder) {
+    $builder->link('/', "App\\Controllers\\BlogController::view_all", [
+        'name' => 'blogsViewAll'
     ]);
-    $builder->link('/delete/(blogId:digit)', "BlogController::delete/{blogId}");
-    $builder->link('/update/(blogId:digit)', "BlogController::update/{blogId}");
+    $builder->link('/create', "App\\Controllers\\BlogController::create", [
+        'name' => 'blogsCreate'
+    ]);
+    $builder->link('/view/(blogId:digit)', "App\\Controllers\\BlogController::view/{blogId}", [
+        'name' => 'blogsView'
+    ]);
+    $builder->link('/delete/(blogId:digit)', "App\\Controllers\\BlogController::delete/{blogId}", [
+        'name' => 'blogsDelete'
+    ]);
+    $builder->link('/update/(blogId:digit)', "App\\Controllers\\BlogController::update/{blogId}", [
+        'name' => 'blogsUpdate'
+    ]);
 });
 ```
 
 ## **Working with Router**
 
-The main use of `Router` is to find the `Route` that matches the current HTTP request url. Now, create your `Router` object.
+The main use of `Router` is to find the `Route` that matches the current HTTP request url. Now, get the instance of `Router` object from the builder.
 
 ```php
-$router = $builder->getRouterInstance();
+$router = $routeBuilder->getRouterInstance();
 ```
 
 ### **Find the matched Route**
@@ -109,28 +113,25 @@ $router = $builder->getRouterInstance();
 Here you will ask `Router` to give you a `Route` that match the specifier you give.
 
 ```php
-$url = $_SERVER['REQUEST_URI'];
-$route = $router->findRouteByUrl($url);
+$url = parse_url($_SERVER['REQUEST_URI']); // use parse_url() because query string may have been exists
+$route = $router->findRouteByUrl($url['path']);
 ```
 
-If a client request goes like this: `http:://example.com/blog/123456789` then the `Router` will search in the collection and find the matched `Route` instance.
-
-Then get the the class and it's method
+If a client request goes like this: `http:://example.com/blogs/view/123456789` then the `Router` will search in the collection and find the matched `Route` instance. Now get the the class and it's method
 
 ```php
-// $builder->link('/blog/(blogId:digit)', "BlogController::view/{blogId}");
 // http:://example.com/blog/123456789
 
-$class = $route->getClass(); // BlogController
+$class = $route->getClass(); // App\Controllers\BlogController
 $action = $route->getAction(); // view
 $params = $route->getParams(); // [blogId => 1282]
 ```
 
-And get them ready to invoke the action (method)
+Get them ready to invoke the action (method)
 
 ```php
-$obj = new $class(); // same as $obj = new BlogController();
-$obj->{$action}(...$params); // same as $obj->view(...[blogId => 1282])
+$obj = new $class(); // $obj = new App\Controllers\BlogController();
+$obj->{$action}(...$params); // $obj->view(...[blogId => 1282])
 ```
 
 ### **Reverse URL**
@@ -138,10 +139,10 @@ $obj->{$action}(...$params); // same as $obj->view(...[blogId => 1282])
 The `Router` can also reverse `URL` string of a named linking (`Route`) using `Router::reverseUrl`
 
 ```php
-$router->reverseUrl('blogView', [
-    'blogView' => 1234
+$router->reverseUrl('blogsView', [
+    'blogId' => 1234
 ]);
-// return: /blog/view/1234
+// return: /blogs/view/1234
 ```
 
 You can also define you own placeholder types using the `Router::registerPlaceholder` function.
@@ -150,7 +151,7 @@ You can also define you own placeholder types using the `Router::registerPlaceho
 Router::registerPlaceholder('date', '\d{4}\/\d{1,2}\/\d{1,2}', false);
 ```
 
-The fisrt parameter passed is the name of type, the second is pattern, and the third is a boolean whether your defined type can have quantifier or not, the default is true. Then use it the way you are using [types](#types)
+The fisrt parameter passed is the name of type, the second is pattern, and the third is a boolean whether your defined type can have quantifier or not, the default is true. Then use it the way you are using [types](#route-types)
 
 ```php
 $builder->link('/blog/(d:date)/(id:digit)', 'App\\Blog\\Post::view/{date}/{id}');
@@ -164,17 +165,19 @@ As we already see we use `builder->link($url, $destination, $options)` to create
 
 ### **Route URL**
 
-The first parameter `$url` in `RouteBuilder::link` can contains placeholders to be extracted called parameter of the action. This placeholders must rule syntax look like:
+The first parameter `$url` in `RouteBuilder::link` can contains placeholders to be extracted called variable arguments which can be passed to class method as it's parameters. This placeholder's rule syntax look like:
 
 > ([name]\[:type]\[:quantifier])
 
-**[name]** - *Optional*. The name of parameter for this placeholder
+**[name]** - _Optional_. The name of parameter for this placeholder
 
 **[:type]** - The type of value this placeholder can hold.
 
-**[:quantifier]** - The fixed length of the value.
+**[:quantifier]** - _Optional_. The length of the value.
 
-### **Types**
+The second parameter is the destination of the request URL that `Route` map to. Which contains a class and it's method with parameters given according to the order they are written in that method.
+
+### **Route Types**
 
 These are the list of valid placeholder types defined.
 
@@ -194,8 +197,6 @@ uuid      |     false      | This placeholder matches UUID
 xdigit    |     true       | This placeholder matches hexadecimal numbers (0-9, a-z)
 year      |     false      | This placeholder matches year format (1000-2999 only)
 
-The second parameter is the destination of the request URL that `Route` map to. Which contains a class and it's method with parameters given according to the order they are written in that method.
-
 For the placeholder that can have quantifier, this is the format they can be written.
 
 | Example | Description |
@@ -209,25 +210,3 @@ For the placeholder that can have quantifier, this is the format they can be wri
 `(:alnum:?)`    | This matches 0 or 1 string of character.
 `(:alnum:*)`    | This matches from 0 or more string of character(s).
 `(:alnum:+)`    | This matches from 1 or more string of character(s).
-
-### **Example:**
-
-```php
-$builder->link('/blog/(:digit)', 'Blog\\Post::view/{1}');
-```
-
-The above linking will create new Route with url matching `/blog/{any decimal numbers}` and map to `Blog\Post::view($id)`.
-
-The above Route will map to the class
-
-```php
-namespace Blog;
-
-class Post
-{
-    public function view($id)
-    {
-        echo __METHOD__ . ': ' . $id;
-    }
-}
-```
